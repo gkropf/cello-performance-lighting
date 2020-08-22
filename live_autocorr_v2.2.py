@@ -5,10 +5,13 @@ from scipy import signal
 from scipy.fftpack import fft, ifft, ifftshift, helper
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+mpl.style.use('ggplot')
+
 import pandas as pd
 # from threading import Thread
 # from queue import Queue
 from multiprocessing import Process, Queue
+from queue import Empty
 import sys
 from scipy.io.wavfile import write
 
@@ -17,10 +20,11 @@ start_time = time.time()
 
 # Set audio processing parameters
 sampling_rate = 44100
-visual_refresh_rate = 60#Hz, determines audio buffer size
-noise_db_threshold = 10#dB, sets threshold for volume to trigger audio analysis
-freq_window_length = 1/32#s, length of running window used to compute current frequency
-volume_window_length = 1/32#s, length of running window used to compute current volume
+visual_refresh_rate = 30#Hz, determines audio buffer size
+noise_db_threshold = 5#dB, sets threshold for volume to trigger audio analysis
+freq_window_length = 1/32#s, length of window used to compute current frequency
+volume_window_length = 1/128#s, length of window used to compute current volume
+running__beat_analysis = 2#s, must be less than running record length
 running_record_length = 5#s, length of running window of audio to store
 
 
@@ -28,10 +32,9 @@ running_record_length = 5#s, length of running window of audio to store
 spectrum_num_bands = 14
 raw_signal_range = 8000
 fft_signal_range = 1
-potentail_freq_range = [30,2000]
-running_window_length = 2
-
-run_time = 1000
+volume_range = 80
+potentail_freq_range = [30,1200]
+run_time = 300
 
 
 # --------------------------------------------- #
@@ -89,32 +92,31 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 
 
 	all_recorded_audio = []
-	sample_volumes = []
+	all_recorded_volumes = []
+	volume_is_beat = []
+	last_beat = 0
+	last_beat_volume = 100
+
 	loop_time = 60*[10]
 	loop_time2 = 60*[10]
-	chunk_counter = 
+	chunk_counter = 0
 
 	while time.time()-start_time<run_time:
 
-		# Update running audio variables
-		latest_audio_chunk = input_queue.get()
 		ctime = time.time()
-		while not input_queue.empty():
-			latest_audio_chunk = input_queue.get()
+		# Update running audio variable
+		latest_audio_chunk = input_queue.get()
 		window_size = len(latest_audio_chunk)
 		all_recorded_audio += list(latest_audio_chunk)
-		all_recorded_audio = all_recorded_audio[-int(3*sampling_rate):]
-		freq_audio_chunk = all_recorded_audio[-int(freq_window_length*sampling_rate):]
-		volume_audio_chunk = all_recorded_audio[-int(volume_window_length*sampling_rate):]
-		signal_autocorrelation = autocorr(freq_audio_chunk)
-		signal_fft = abs(fft(hanning(len(freq_audio_chunk))*freq_audio_chunk))**2
 
-		ctime2 = time.time()
 		# Check if there is an actual signal present (based simply on volume)
+		freq_audio_chunk = all_recorded_audio[-int(freq_window_length*sampling_rate):]
 		curr_freq_volume = 10*log10(mean(array(freq_audio_chunk)**2))
 		is_signal = (curr_freq_volume > noise_level + noise_db_threshold)
 
-		# Determine primary frequency and note using peak method
+		# Determine primary frequency and note using autocorr peak method
+		signal_autocorrelation = autocorr(freq_audio_chunk)
+		signal_fft = abs(fft(hanning(len(freq_audio_chunk))*freq_audio_chunk))**2
 		first_max_peak = argmax(signal_autocorrelation[50:])+50
 		main_freq = round(sampling_rate/first_max_peak)		
 		curr_note = all_notes['note'].values[argmin(abs(all_notes['freq'].values-main_freq))]
@@ -126,13 +128,51 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 		wave_sawtooth = autocorr(signal.sawtooth(main_freq*signal_x_times*2*pi))
 		best_wave, best_fit = max([(x,corrcoef(x,signal_autocorrelation)[0,1]) for x in [wave_sine,wave_square,wave_sawtooth]], key=lambda t: t[1])
 
-		# Output processed audio features for display
-		output_queue.put([freq_audio_chunk, volume_audio_chunk, signal_fft, signal_autocorrelation, \
-			is_signal, first_max_peak, main_freq, curr_note, best_wave, best_fit])
+		# Update volumes list
+		volume_chunk_size = int(sampling_rate*volume_window_length)
+		if len(all_recorded_audio) > (len(all_recorded_volumes)+1)*volume_chunk_size:
+			need_vol_analy = all_recorded_audio[(len(all_recorded_volumes))*volume_chunk_size:]
+			volume_chunks = array([need_vol_analy[i*volume_chunk_size:(i+1)*volume_chunk_size] for i in range(len(need_vol_analy)//volume_chunk_size)])
+			start = (len(all_recorded_volumes))*volume_chunk_size
+			end = start+((len(need_vol_analy)//volume_chunk_size-1)+1)*volume_chunk_size
+			print(start, end)
+			all_recorded_volumes += [10*log10(mean(chunk**2)) for chunk in volume_chunks]
 
-		loop_time = loop_time[1:]+[ctime2-ctime]
-		loop_time2 = loop_time2[1:]+[time.time()-ctime2]
-		# print(mean(loop_time),mean(loop_time2))
+		# Check new additions for possible beats. In order to be a beat the volume chunk must be
+		# 1. Above threshold for noise
+		# 2. A local maximum
+		# 3. There must be atleast a 20% fall in volume between two beats
+		for k in range(len(volume_is_beat),len(all_recorded_volumes)-1):
+
+			# Check value is worth investigating
+			beat_local_max = all_recorded_volumes[k]>max(
+				max(all_recorded_volumes[(k-2):k]),
+				max(all_recorded_volumes[(k+1):(k+3)],default=0),
+				noise_db_threshold+noise_level)
+			
+			# If beat is local minimum and above threshold, 
+			if beat_local_max and len(volume_is_beat)>5:
+				min_between_beats = min(all_recorded_volumes[last_beat:-1])
+				min_beats = min(all_recorded_volumes[k],last_beat_volume)
+				if min_between_beats<.8*min_beats: 
+					last_beat = k
+					last_beat_volume = all_recorded_volumes[k]
+					volume_is_beat.append(True)
+				else:
+					volume_is_beat.append(False)
+			else:
+				volume_is_beat.append(False)
+	
+
+
+
+		# Output processed audio features for display
+		output_queue.put([freq_audio_chunk, signal_fft, signal_autocorrelation, is_signal, first_max_peak, \
+			main_freq, curr_note, best_wave, best_fit, all_recorded_volumes[-int(running_record_length/volume_window_length):],
+			volume_is_beat[-(int(running_record_length/volume_window_length)-1):]])
+
+		loop_time = loop_time[1:]+[time.time()-ctime]
+		# print(mean(loop_time))
 		# if curr_freq_volume>60:
 		# 	print('------ blip ------')
 
@@ -147,18 +187,22 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 def GUI_display_thread(input_queue):
 
 	# Set up the base plots
-	fig = plt.figure(figsize=(28,20), dpi=100)
+	# wm = plt.get_current_fig_manager()
+	# wm.window.attributes('-topmost', 1)
+	# wm.window.attributes('-topmost', 0)
+	fig = plt.figure(figsize=(18,10), dpi=100)
 
 	ax1 = fig.add_subplot(2,2,1)
 	x = 1000*arange(int(freq_window_length*sampling_rate))/sampling_rate
 	line1, = ax1.plot(x,0*x,'k-')
 	current_ticks = ax1.get_xticks()
 	print(current_ticks)
-	ax1.set_xticklabels([str(int(x))+'ms' for x in current_ticks])
+	ax1.set_xlim([min(x),max(x)])
+	ax1.set_xticks([int((max(x)-min(x))*i) for i in linspace(.05,.95,5)])
+	ax1.set_xticklabels([str(int(x))+'ms' for x in ax1.get_xticks()])
 	ax1.set_ylim([-raw_signal_range,raw_signal_range])
-	#ax1.set_xlim([min(x),max(x)])
 	ax1.set_title('Raw Audio Signal')
-	ax1.set_yticks([])
+	ax1.set_yticklabels([])
 
 	ax2 = fig.add_subplot(2,2,3)
 	x = arange(len(x)//2)
@@ -167,61 +211,78 @@ def GUI_display_thread(input_queue):
 	line3, = ax2.plot(x,0*x,'b-')
 	ax2.set_ylim([-fft_signal_range,fft_signal_range])
 	ax2.set_title('Signal Autocorrelation')
+	ax2.set_xticks([int((max(x)-min(x))*i) for i in linspace(.05,.95,5)])
 	ax2.set_xticklabels([str(int(1000*x/sampling_rate))+'ms' for x in ax2.get_xticks()])
-	#ax2.set_xlim([min(x),max(x)])
+	ax2.set_xlim([min(x),max(x)])
 	text1 = ax2.text(0.4, 0.85, 'Main Frequency: --\nMax Degree of fit: ', horizontalalignment='left', verticalalignment='center', transform=ax2.transAxes, 
 	bbox=dict(facecolor='white', alpha=0.5, edgecolor='black'))	
 
 	ax3 = fig.add_subplot(2,2,2)
+	ax3.set_yticklabels([])
 	x = arange(spectrum_num_bands)
 	y = arange(len(x))
 	line4 = ax3.bar(x,height=y)
 	ax3.set_ylim([0,2*10**11])
+	ax3.set_xticks(linspace(0,spectrum_num_bands-1,6))
+	ax3.set_xticklabels([str(int(k))+'Hz' for k in linspace(potentail_freq_range[0],potentail_freq_range[1],6)])
 
 	# Prep for band updates
 	fft_signal_freqs = sampling_rate*helper.fftfreq(int(freq_window_length*sampling_rate))
 	band_indices = [argmin(abs(fft_signal_freqs-x)) for x in linspace(potentail_freq_range[0],potentail_freq_range[1],spectrum_num_bands+1)]
-	fig.tight_layout()
-	# plt.plot()
-	plt.pause(.00001)
-	fig_counter = 0
+	
+	ax4 = fig.add_subplot(2,2,4)
+	x = arange(int(running_record_length/volume_window_length))*volume_window_length
+	line5, = ax4.plot(x,0*x,'k--')
+	line6, = ax4.plot(x[:-1],0*x[:-1]-1,'rs')
+	ax4.set_ylim([0,volume_range])
 
+	# Display plot
+	fig.tight_layout()
+	plt.pause(.00001)
 
 	while time.time()-start_time<run_time:
+
 		# Read processed audio from queue
-		freq_audio_chunk, volume_audio_chunk, signal_fft, signal_autocorrelation, \
-		is_signal, first_max_peak, main_freq, curr_note, best_wave, best_fit = input_queue.get()
-		while not input_queue.empty():
-			freq_audio_chunk, volume_audio_chunk, signal_fft, signal_autocorrelation, \
-			is_signal, first_max_peak, main_freq, curr_note, best_wave, best_fit = input_queue.get()
+		freq_audio_chunk, signal_fft, signal_autocorrelation, is_signal, first_max_peak, main_freq, \
+		curr_note, best_wave, best_fit, past_volumes, past_beats = input_queue.get()
 
-		fig_counter += 1
-		print(f'------ fake fig_counter {fig_counter}')
-		# if 10*log10(mean(array(freq_audio_chunk)**2))>60:
-		# 	print('------ blip ------')
-
-
+		# Call get method until we arrive at the latest item (use exception to prevent locking)
+		try:
+			while input_queue.qsize()>0:
+				freq_audio_chunk, signal_fft, signal_autocorrelation, is_signal, first_max_peak, main_freq, \
+				curr_note, best_wave, best_fit, past_volumes, past_beats = input_queue.get()
+		except Empty:
+			pass
+		
 		# Update raw audio plot
 		line1.set_ydata(freq_audio_chunk)
 
 		# Update spectrum plot
-		# fft_bands = [mean(signal_fft[band_indices[k]:band_indices[k+1]]) for k in range(spectrum_num_bands)]
-		# for rect, h in zip(line4,fft_bands):
-		# 	rect.set_height(h)
+		fft_bands = [mean(signal_fft[band_indices[k]:band_indices[k+1]]) for k in range(spectrum_num_bands)]
+		for rect, h in zip(line4,fft_bands):
+			rect.set_height(h)
 
 		# Update freq content
 		line2.set_ydata(signal_autocorrelation)
 		if is_signal:
 			point1.set_xdata(first_max_peak)
 			point1.set_ydata(signal_autocorrelation[first_max_peak])
-			# text1.set_text(f'Main Frequencyz: {main_freq}Hz ({curr_note})\nMax Degree of fit: {int(100*best_fit)}%')
+			text1.set_text(f'Main Frequencyz: {main_freq}Hz ({curr_note})\nMax Degree of fit: {int(100*best_fit)}%')
 			line3.set_ydata(best_wave)
 		else:
-			# text1.set_text(f'Main Frequencyz: --Hz (--)\nMax Degree of fit: --%')
+			text1.set_text(f'Main Frequencyz: --Hz (--)\nMax Degree of fit: --%')
 			line3.set_ydata(len(best_wave)*[-3])
 			point1.set_ydata([-3])
 
-		text1.set_text(f'Im on figure {fig_counter}')
+		# Update volume plot
+		past_volumes = (int(running_record_length/volume_window_length)-len(past_volumes))*[0]+past_volumes
+		past_beats = (int(running_record_length/volume_window_length)-len(past_beats)-1)*['N']+past_beats
+		beat_plot_update = [past_volumes[i] if past_beats[i] else -1 for i in range(len(past_beats))]
+
+		line5.set_ydata(past_volumes)
+		line6.set_ydata(beat_plot_update)
+
+		# Display all changes
 		plt.pause(.000001)
 		# plt.show()
 
