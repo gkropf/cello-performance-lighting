@@ -24,13 +24,6 @@ potentail_freq_range = [30,2000]
 
 
 
-# Define fast autocorrelation function
-def autocorr(series):
-	temp2 = fft(list(series)+list(zeros(len(series)-1)))
-	temp3 = real(ifft(abs(temp2)))
-	autocorr = temp3[:len(series)//2]/(arange(len(series)//2)[::-1]+len(series)//2)	
-	return autocorr/max(autocorr)
-
 
 # --------------------------------------------- #
 # This function holds the core audio processing
@@ -45,8 +38,16 @@ def audio_processing_thread(output_queue):
 	best_wave = 0
 	best_fit = 0
 
+
+	# Define fast autocorrelation function
+	def autocorr(series):
+		temp2 = fft(list(series)+list(zeros(len(series)-1)))
+		temp3 = real(ifft(abs(temp2)))
+		autocorr = temp3[:len(series)//2]/(arange(len(series)//2)[::-1]+len(series)//2)	
+		return autocorr/max(autocorr)
+
 	# Define all note frequencies
-	notes_current = pd.DataFrame((('C1',32.70),('C1#',34.65),('D1',36.71),('D1#',38.89),('E1',41.20),('F1',43.65),('F1#',46.25),('G1',49.00),('G1#',51.91),('A1',55.00),('A1#',58.27),('B1',61.74)))
+	notes_current = pd.DataFrame([('C1',32.70),('C1#',34.65),('D1',36.71),('D1#',38.89),('E1',41.20),('F1',43.65),('F1#',46.25),('G1',49.00),('G1#',51.91),('A1',55.00),('A1#',58.27),('B1',61.74)])
 	notes_current.columns = ['note','freq']
 	all_notes = notes_current.copy()
 	for k in range(2,7):
@@ -76,8 +77,10 @@ def audio_processing_thread(output_queue):
 	# Start main loop to continually pull and analyze audio data
 	running_signal_volume = []
 	while True:
+		ctime = time.time()
 		# Read in audio data and transform
 		last_audio_chunk = array(frombuffer(stream.read(window_size, exception_on_overflow=False), int16), float)
+		print(len(last_audio_chunk))
 		chunk_volume = 10*log10(mean(last_audio_chunk**2))
 		signal_autocorr = autocorr(last_audio_chunk)
 
@@ -90,19 +93,20 @@ def audio_processing_thread(output_queue):
 
 		# If there is more than just noise, analyze signal
 		chunk_has_signal = chunk_volume-noise_db_threshold>noise_level
-		if chunk_has_signal:
+		# if True:#chunk_has_signal:
 
-			# Determine primary frequency and note using peak method
-			first_max_peak = argmax(signal_autocorr[50:])+50
-			main_freq = round(sampling_rate/first_max_peak)		
-			curr_note = all_notes['note'].values[argmin(abs(all_notes['freq'].values-main_freq))]
+		# Determine primary frequency and note using peak method
+		first_max_peak = argmax(signal_autocorr[50:])+50
+		main_freq = round(sampling_rate/first_max_peak)		
+		curr_note = all_notes['note'].values[argmin(abs(all_notes['freq'].values-main_freq))]
 
-			# Find best fitting theoretical wave
-			signal_x_times = 1000*linspace(0,window_length,window_size)
-			wave_sine = autocorr(sin(main_freq*(signal_x_times/1000)*2*pi))
-			wave_square = autocorr(signal.square(main_freq*(signal_x_times/1000)*2*pi))
-			wave_sawtooth = autocorr(signal.sawtooth(main_freq*(signal_x_times/1000)*2*pi))
-			best_wave, best_fit = max([(x,corrcoef(x,signal_autocorr)[0,1]) for x in [wave_sine,wave_square,wave_sawtooth]], key=lambda t: t[1])
+		# Find best fitting theoretical wave
+		ctime = time.time()
+		signal_x_times = 1000*linspace(0,window_length,window_size)
+		wave_sine = autocorr(sin(main_freq*(signal_x_times/1000)*2*pi))
+		wave_square = autocorr(signal.square(main_freq*(signal_x_times/1000)*2*pi))
+		wave_sawtooth = autocorr(signal.sawtooth(main_freq*(signal_x_times/1000)*2*pi))
+		best_wave, best_fit = max([(x,corrcoef(x,signal_autocorr)[0,1]) for x in [wave_sine,wave_square,wave_sawtooth]], key=lambda t: t[1])
 
 		# Update queue with latest value
 		if not output_queue.empty():
@@ -110,7 +114,7 @@ def audio_processing_thread(output_queue):
 
 		output_queue.put([last_audio_chunk,chunk_volume,signal_autocorr,running_signal_volume,chunk_has_signal,first_max_peak,main_freq,curr_note,best_wave,best_fit,time.time()])
 		# print(time.time()-start_time)
-
+		print(time.time()-ctime)
 
 # ---------------------------------------------------- #
 # This function produces simple plots using matplotlib
