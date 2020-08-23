@@ -186,10 +186,10 @@ def GUI_display_thread(input_queue):
 
 main_queue = Queue()
 process1 = Process(target=audio_processing_thread, args=[main_queue])
-# process2 = Process(target=GUI_display_thread, args=[main_queue])
+process2 = Process(target=GUI_display_thread, args=[main_queue])
 process1.start()
-# process2.start()
-GUI_display_thread(main_queue)
+process2.start()
+# GUI_display_thread(main_queue)
 # audio_processing_thread(main_queue)
 
 
