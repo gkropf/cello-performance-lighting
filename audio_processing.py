@@ -3,13 +3,13 @@ import pyaudio
 from numpy import *
 from scipy.fftpack import fft, ifft, ifftshift, helper
 from scipy import signal
-
+import time
 
 
 
 # Set audio processing parameters
 sampling_rate = 44100
-visual_refresh_rate = 30#Hz, determines audio buffer size
+visual_refresh_rate = 4#Hz, determines audio buffer size
 noise_db_threshold = 10#dB, sets threshold for volume to trigger audio analysis
 freq_window_length = 1/32#s, length of window used to compute current frequency
 volume_window_length = 1/64#s, length of window used to compute current volume
@@ -32,10 +32,14 @@ def record_audio_thread(output_queue,program_state):
 		input=True,
 		frames_per_buffer=buffer_size
 		)
+	ctime = time.time()
+	counter = 0
 	while program_state.value<=4:
 	# while time.time()-start_time<=.5:
 		last_audio_chunk = array(frombuffer(stream.read(buffer_size, exception_on_overflow=True), int16), float)
 		output_queue.put([last_audio_chunk,program_state.value])
+		counter += 1
+		print((time.time()-ctime)/counter)
 
 	# This makes sure that the next thread gets properly shutdown
 	output_queue.put([[],program_state.value])

@@ -166,11 +166,11 @@ manager = Manager()
 program_state = manager.Value('int',1)
 
 process1 = Process(target=record_audio_thread, args=[audio_stream_queue,program_state])
-process2 = Process(target=audio_processing_thread, args=[audio_stream_queue,processed_audio_data_queue,final_audio])
-process3 = Process(target=GUI_display_thread, args=[processed_audio_data_queue])
+# process2 = Process(target=audio_processing_thread, args=[audio_stream_queue,processed_audio_data_queue,final_audio])
+# process3 = Process(target=GUI_display_thread, args=[processed_audio_data_queue])
 process1.start()
-process2.start()
-process3.start()
+# process2.start()
+# process3.start()
 
 while program_state.value<=4:
 	input('Press any key to advance state')
