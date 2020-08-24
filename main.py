@@ -16,13 +16,14 @@ from queue import Empty
 import sys
 from scipy.io.wavfile import write
 import readline
+from audio_processing import *
 
 set_printoptions(threshold=sys.maxsize)
 start_time = time.time()
 
 # Set audio processing parameters
 sampling_rate = 44100
-visual_refresh_rate = 30#Hz, determines audio buffer size
+visual_refresh_rate = 60#Hz, determines audio buffer size
 noise_db_threshold = 10#dB, sets threshold for volume to trigger audio analysis
 freq_window_length = 1/32#s, length of window used to compute current frequency
 volume_window_length = 1/64#s, length of window used to compute current volume
@@ -39,144 +40,6 @@ fft_signal_range = 1
 volume_range = 80
 potentail_freq_range = [30,1200]
 
-
-# --------------------------------------------- #
-# This functions only purpose is to maintain
-# a live in-time queue of audio chunks
-# --------------------------------------------- #
-def record_audio_thread(output_queue,program_state):
-	audio = pyaudio.PyAudio()
-	buffer_size = int(sampling_rate/visual_refresh_rate)
-	stream = audio.open(
-		format=pyaudio.paInt16, 
-		channels=1, 
-		rate=sampling_rate, 
-		input=True,
-		frames_per_buffer=buffer_size
-		)
-	while program_state.value<=4:
-	# while time.time()-start_time<=.5:
-		last_audio_chunk = array(frombuffer(stream.read(buffer_size, exception_on_overflow=True), int16), float)
-		audio_stream_queue.put([last_audio_chunk,program_state.value])
-
-	# This makes sure that the next thread gets properly shutdown
-	audio_stream_queue.put([[],program_state.value])
-	print('1 Finished')
-
-
-# --------------------------------------------- #
-# This function holds the core audio processing
-# code and continuously updates the shared data.
-# --------------------------------------------- #
-def audio_processing_thread(input_queue,output_queue,save_queue):
-
-	# Define fast autocorrelation function
-	def autocorr(series):
-		temp2 = fft(list(series)+list(zeros(len(series)-1)))
-		temp3 = real(ifft(abs(temp2)))
-		autocorr = temp3[:len(series)//2]/(arange(len(series)//2)[::-1]+len(series)//2)	
-		return autocorr/max(autocorr)
-
-
-	# Define all note frequencies
-	notes_current = pd.DataFrame([('C1',32.70),('C1#',34.65),('D1',36.71),('D1#',38.89),('E1',41.20),('F1',43.65),
-		('F1#',46.25),('G1',49.00),('G1#',51.91),('A1',55.00),('A1#',58.27),('B1',61.74)])
-	notes_current.columns = ['note','freq']
-	all_notes = notes_current.copy()
-	for k in range(2,7):
-		notes_current['note'] = [x[:1]+str(k)+x[2:] for x in notes_current['note'].values]
-		notes_current['freq'] = [2*x for x in notes_current['freq'].values]
-		all_notes = all_notes.append(notes_current)
-
-	# Get noise magnitude of room
-	print('\nGauging ambient noise level of the room, please be quiet.')
-	# noise_sample = array([],float)
-	# for k in range(int(1*sampling_rate/window_size)):
-	# 	noise_sample = concatenate((noise_sample,array(frombuffer(stream.read(window_size, exception_on_overflow=False), int16), float)))
-	# noise_level = 10*log10(mean(noise_sample**2))
-	# print(f'Recorded noise: {noise_level}dB')
-	noise_level = 40
-
-
-	all_recorded_audio = []
-	all_recorded_volumes = []
-	volume_is_beat = []
-	last_beat = 0
-	last_beat_volume = 100
-
-	while True:
-
-		# Update running audio variable
-		latest_audio_chunk, program_state = input_queue.get()
-		window_size = len(latest_audio_chunk)
-		all_recorded_audio += list(latest_audio_chunk)
-		if program_state>4:
-			break
-
-		# Check if there is an actual signal present (based simply on volume)
-		freq_audio_chunk = all_recorded_audio[-int(freq_window_length*sampling_rate):]
-		curr_freq_volume = 10*log10(mean(array(freq_audio_chunk)**2))
-		is_signal = (curr_freq_volume > noise_level + noise_db_threshold)
-
-		# Determine primary frequency and note using autocorr peak method
-		signal_autocorrelation = autocorr(freq_audio_chunk)
-		signal_fft = abs(fft(hanning(len(freq_audio_chunk))*freq_audio_chunk))**2
-		first_max_peak = argmax(signal_autocorrelation[50:])+50
-		main_freq = round(sampling_rate/first_max_peak)		
-		curr_note = all_notes['note'].values[argmin(abs(all_notes['freq'].values-main_freq))]
-
-		# Find best fitting theoretical wave
-		signal_x_times = arange(len(freq_audio_chunk))/sampling_rate
-		wave_sine = autocorr(sin(main_freq*signal_x_times*2*pi))
-		wave_square = autocorr(signal.square(main_freq*signal_x_times*2*pi))
-		wave_sawtooth = autocorr(signal.sawtooth(main_freq*signal_x_times*2*pi))
-		best_wave, best_fit = max([(x,corrcoef(x,signal_autocorrelation)[0,1]) for x in [wave_sine,wave_square,wave_sawtooth]], key=lambda t: t[1])
-
-		# Update volumes list
-		volume_chunk_size = int(sampling_rate*volume_window_length)
-		if len(all_recorded_audio) > (len(all_recorded_volumes)+1)*volume_chunk_size:
-			need_vol_analy = all_recorded_audio[(len(all_recorded_volumes))*volume_chunk_size:]
-			volume_chunks = array([need_vol_analy[i*volume_chunk_size:(i+1)*volume_chunk_size] for i in range(len(need_vol_analy)//volume_chunk_size)])
-			all_recorded_volumes += [10*log10(mean(chunk**2)) for chunk in volume_chunks]
-
-		# Check new additions for possible beats. In order to be a beat the volume chunk must be
-		# 1. Above threshold for noise
-		# 2. A local maximum
-		# 3. There must be atleast a 20% fall in volume between two beats
-		for k in range(len(volume_is_beat),len(all_recorded_volumes)-num_max_width):
-
-			# Check value is worth investigating
-			beat_local_max = all_recorded_volumes[k]>max(
-				max(all_recorded_volumes[(k-num_max_width):k], default=1000),
-				max(all_recorded_volumes[(k+1):(k+1+num_max_width)],default=1000),
-				noise_db_threshold+noise_level)
-
-			# If beat is local minimum and above noise threshold, then check that there has been a dip in noise
-			# between this and last beat (prevents multy counting continuous notes).
-			if beat_local_max:
-				min_between_beats = min(all_recorded_volumes[last_beat:])
-				min_beats = min(all_recorded_volumes[k],last_beat_volume)
-				if (min_between_beats-noise_level)<.7*(min_beats-noise_level): 
-					last_beat = k
-					last_beat_volume = all_recorded_volumes[k]
-					volume_is_beat.append(True)
-				else:
-					volume_is_beat.append(False)
-			else:
-				volume_is_beat.append(False)
-	
-
-
-
-		# Output processed audio features for display
-		output_queue.put([freq_audio_chunk, signal_fft, signal_autocorrelation, is_signal, first_max_peak, \
-			main_freq, curr_note, best_wave, best_fit, all_recorded_volumes[-int(running_record_length/volume_window_length):],
-			volume_is_beat[-(int(running_record_length/volume_window_length)-num_max_width):]+num_max_width*[False], program_state])
-
-	# Clean up and save recording
-	output_queue.put(11*[[]]+[program_state])
-	save_queue.put(all_recorded_audio)
-	print('2 finished')
 
 # ---------------------------------------------------- #
 # This function produces simple plots using matplotlib
@@ -315,5 +178,6 @@ while program_state.value<=4:
 
 full_recording = final_audio.get()
 time.sleep(.1)
-write("main_recording.wav",sampling_rate,array(full_recording, dtype=int16))
+# write("main_recording.wav",sampling_rate,array(full_recording, dtype=int16))
+
 
