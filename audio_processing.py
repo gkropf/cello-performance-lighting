@@ -6,10 +6,9 @@ from scipy import signal
 import time
 
 
-
 # Set audio processing parameters
 sampling_rate = 44100
-visual_refresh_rate = 4#Hz, determines audio buffer size
+visual_refresh_rate = 30#Hz, determines audio buffer size
 noise_db_threshold = 10#dB, sets threshold for volume to trigger audio analysis
 freq_window_length = 1/32#s, length of window used to compute current frequency
 volume_window_length = 1/64#s, length of window used to compute current volume
@@ -32,18 +31,14 @@ def record_audio_thread(output_queue,program_state):
 		input=True,
 		frames_per_buffer=buffer_size
 		)
-	ctime = time.time()
-	counter = 0
+
 	while program_state.value<=4:
-	# while time.time()-start_time<=.5:
 		last_audio_chunk = array(frombuffer(stream.read(buffer_size, exception_on_overflow=True), int16), float)
 		output_queue.put([last_audio_chunk,program_state.value])
-		counter += 1
-		print((time.time()-ctime)/counter)
 
 	# This makes sure that the next thread gets properly shutdown
 	output_queue.put([[],program_state.value])
-	print('1 Finished')
+	print('Audio recording finished')
 
 
 # --------------------------------------------- #
@@ -151,11 +146,16 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 
 
 		# Output processed audio features for display
+		user_params = [sampling_rate, visual_refresh_rate, noise_db_threshold, freq_window_length,\
+			volume_window_length, running__beat_analysis, running_record_length, num_max_width]
+
 		output_queue.put([freq_audio_chunk, signal_fft, signal_autocorrelation, is_signal, first_max_peak, \
-			main_freq, curr_note, best_wave, best_fit, all_recorded_volumes[-int(running_record_length/volume_window_length):],
-			volume_is_beat[-(int(running_record_length/volume_window_length)-num_max_width):]+num_max_width*[False], program_state])
+			main_freq, curr_note, best_wave, best_fit, 
+			all_recorded_volumes[-int(running_record_length/volume_window_length):],
+			volume_is_beat[-(int(running_record_length/volume_window_length)-num_max_width):]+num_max_width*[False], 
+			program_state, user_params])
 
 	# Clean up and save recording
-	output_queue.put(11*[[]]+[program_state])
+	output_queue.put(11*[[]]+[program_state,user_params])
 	save_queue.put(all_recorded_audio)
-	print('2 finished')
+	print('Audio anlaysis finished')
