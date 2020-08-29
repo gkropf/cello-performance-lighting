@@ -9,7 +9,7 @@ import time
 # Set audio processing parameters
 sampling_rate = 44100
 visual_refresh_rate = 30#Hz, determines audio buffer size
-noise_db_threshold = 10#dB, sets threshold for volume to trigger audio analysis
+noise_db_threshold = 15#dB, sets threshold for volume to trigger audio analysis
 freq_window_length = 1/32#s, length of window used to compute current frequency
 volume_window_length = 1/64#s, length of window used to compute current volume
 running__beat_analysis = 2#s, must be less than running record length
@@ -33,7 +33,7 @@ def record_audio_thread(output_queue,program_state):
 		)
 
 	while program_state.value<=4:
-		last_audio_chunk = array(frombuffer(stream.read(buffer_size, exception_on_overflow=True), int16), float)
+		last_audio_chunk = array(frombuffer(stream.read(buffer_size, exception_on_overflow=False), int16), float)
 		output_queue.put([last_audio_chunk,program_state.value])
 
 	# This makes sure that the next thread gets properly shutdown
@@ -72,7 +72,7 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 	# 	noise_sample = concatenate((noise_sample,array(frombuffer(stream.read(window_size, exception_on_overflow=False), int16), float)))
 	# noise_level = 10*log10(mean(noise_sample**2))
 	# print(f'Recorded noise: {noise_level}dB')
-	noise_level = 40
+	noise_level = 25
 
 
 	all_recorded_audio = []

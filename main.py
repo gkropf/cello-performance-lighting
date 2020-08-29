@@ -2,7 +2,8 @@ from multiprocessing import Process, Queue, Manager
 from queue import Empty
 from scipy.io.wavfile import write
 from audio_processing import *
-from visual_processing import *
+#from GUI_display import *
+from LED_display import *
 
 
 # Set up queues for managing tasks.
@@ -15,7 +16,8 @@ program_state = manager.Value('int',1)
 # Start processes
 process1 = Process(target=record_audio_thread, args=[audio_stream_queue,program_state])
 process2 = Process(target=audio_processing_thread, args=[audio_stream_queue,processed_audio_data_queue,final_audio])
-process3 = Process(target=GUI_display_thread, args=[processed_audio_data_queue])
+#process3 = Process(target=GUI_display_thread, args=[processed_audio_data_queue])
+process3 = Process(target=LED_display_thread, args=[processed_audio_data_queue])
 process1.start()
 process2.start()
 process3.start()
