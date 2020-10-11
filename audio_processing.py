@@ -9,7 +9,7 @@ import time
 # Set audio processing parameters
 sampling_rate = 44100
 visual_refresh_rate = 30#Hz, determines audio buffer size
-noise_db_threshold = 20#dB, sets threshold for volume to trigger audio analysis
+noise_db_threshold = 15#dB, sets threshold for volume to trigger audio analysis
 freq_window_length = 1/32#s, length of window used to compute current frequency
 volume_window_length = 1/32#s, length of window used to compute current volume
 running__beat_analysis = 2#s, must be less than running record length
@@ -25,9 +25,9 @@ def record_audio_thread(output_queue,program_state):
 	audio = pyaudio.PyAudio()
 	buffer_size = int(sampling_rate/visual_refresh_rate)
 	stream = audio.open(
-		format=pyaudio.paInt16, 
-		channels=1, 
-		rate=sampling_rate, 
+		format=pyaudio.paInt16,
+		channels=1,
+		rate=sampling_rate,
 		input=True,
 		frames_per_buffer=buffer_size
 		)
@@ -78,12 +78,12 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 		all_notes = all_notes.append(notes_current)
 
 	# Get noise magnitude of room
-	# print('\nGauging ambient noise level of the room, please be quiet.')
-	# noise_sample = array([],float)
-	# for k in range(int(1*sampling_rate/window_size)):
+	#print('\nGauging ambient noise level of the room, please be quiet.')
+	#noise_sample = array([],float)
+	#for k in range(visual_refresh_rate):
 	# 	noise_sample = concatenate((noise_sample,array(frombuffer(stream.read(window_size, exception_on_overflow=False), int16), float)))
-	# noise_level = 10*log10(mean(noise_sample**2))
-	# print(f'Recorded noise: {noise_level}dB')
+	#noise_level = 10*log10(mean(noise_sample**2))
+	#print(f'Recorded noise: {noise_level}dB')
 	noise_level = 25
 
 
@@ -111,7 +111,7 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 		signal_autocorrelation = autocorr(freq_audio_chunk)
 		signal_fft = abs(fft(hanning(len(freq_audio_chunk))*freq_audio_chunk))**2
 		first_max_peak = argmax(signal_autocorrelation[50:])+50
-		main_freq = round(sampling_rate/first_max_peak)		
+		main_freq = round(sampling_rate/first_max_peak)
 		curr_note = all_notes.iloc[argmin(abs(all_notes['freq'].values-main_freq)),:]
 
 		# Find best fitting theoretical wave
@@ -145,7 +145,7 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 			if beat_local_max:
 				min_between_beats = min(all_recorded_volumes[last_beat:])
 				min_beats = min(all_recorded_volumes[k],last_beat_volume)
-				if (min_between_beats-noise_level)<.6*(min_beats-noise_level): 
+				if (min_between_beats-noise_level)<.6*(min_beats-noise_level):
 					last_beat = k
 					last_beat_volume = all_recorded_volumes[k]
 					volume_is_beat.append(True)
@@ -153,16 +153,16 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 					volume_is_beat.append(False)
 			else:
 				volume_is_beat.append(False)
-	
+
 
 		# Output processed audio features for display
 		user_params = [sampling_rate, visual_refresh_rate, noise_db_threshold, freq_window_length,\
 			volume_window_length, running__beat_analysis, running_record_length, num_max_width]
 
 		output_queue.put([freq_audio_chunk, signal_fft, signal_autocorrelation, is_signal, first_max_peak, \
-			main_freq, curr_note, best_wave, best_fit, 
+			main_freq, curr_note, best_wave, best_fit,
 			all_recorded_volumes[-int(running_record_length/volume_window_length):],
-			volume_is_beat[-(int(running_record_length/volume_window_length)-num_max_width):]+num_max_width*[False], 
+			volume_is_beat[-(int(running_record_length/volume_window_length)-num_max_width):]+num_max_width*[False],
 			program_state, user_params])
 
 	# Clean up and save recording

@@ -1,7 +1,7 @@
-# import neopixel
-# import board
+import neopixel
+import board
 from numpy import *
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 # ---------------------------------------------------- #
 # This function produces simple plots using matplotlib
@@ -50,18 +50,7 @@ def LED_display_thread(input_queue):
 
 	# Temp stuff -----------------------------------------------------------------------------
 	num_lights = 217
-	light_x_locations = list(linspace(0,-1,56))+60*[-1]+list(linspace(-1,-.5,26))+list(-1*linspace(.5**2,0,46)**(1/2))+29*[0]
-	light_y_locations = 56*[0]+list(linspace(0,1,60))+26*[1]+list(linspace(1,.5,46))+list(linspace(.5,0,29))
-	fig = plt.figure(figsize=(10,4))
-	ax = fig.add_subplot(1,1,1)
-	line1 = ax.scatter(light_x_locations, light_y_locations,s=num_lights*[0],c=arange(num_lights))
-	fig.tight_layout()
-	plt.pause(.00001)
-	# Temp stuff -----------------------------------------------------------------------------
-
-
-
-	# pixels = neopixel.NeoPixel(board.D18, 5, pixel_order=neopixel.GRBW)
+	pixels = neopixel.NeoPixel(board.D18, num_lights+1, pixel_order=neopixel.GRBW)
 	while program_state<=4:
 
 		# Read processed audio from queue
@@ -93,6 +82,7 @@ def LED_display_thread(input_queue):
 			LEDcolor2 = curr_note['color_pair'][1]
 			signal_strength = min(signal_strength+.2,1)
 			pattern_direction = 1 if (cello_string in [0,1]) else -1
+			print(curr_note)
 		else:
 			signal_strength *= .8
 
@@ -121,16 +111,14 @@ def LED_display_thread(input_queue):
 		LED_intensity_values += array(left_strip)+array(right_strip)
 
 		# Make actual LED list of color triplets
-		LED_intensity_values = signal_strength*LED_intensity_values
-		# print('color1', LEDcolor1)
+		LED_intensity_values = (signal_strength/255)*LED_intensity_values
 		LED_actual_values = [ \
-			[intensity*x for x in LEDcolor1] \
+			[int(intensity*x) for x in LEDcolor1] \
 			if k//len(total_vector)%2==0 else \
-			[intensity*x for x in LEDcolor1] \
+			[int(intensity*x) for x in LEDcolor1] \
 		 	for k, intensity in enumerate(LED_intensity_values)]
-		
 
-		line1.set_sizes(LED_intensity_values)
-		line1.set_array(array(LED_intensity_values))
-		plt.pause(1/30)
+		# Update LEDs
+		pixels[:] = [[0,0,0]] + LED_actual_values
+
 
