@@ -1,7 +1,11 @@
 from numpy import *
 import matplotlib.pyplot as plt
 import pandas as pd
-import time
+import time, neopixel, board
+
+length = 218
+pixels = neopixel.NeoPixel(board.D18, length, pixel_order = neopixel.GRBW)
+
 
 
 # ---------------------------- #
@@ -22,7 +26,7 @@ def StreamingLightPattern(state, color1=[255,0,0], color2=[0,0,255]):
 	decay_vector = [255-max(min(int(x),255),0) for x in 255*(linspace(0,1,num_steps_decay)**follow_curve_power)]
 	total_vector = lead_vector+num_states_on_full*[255]+decay_vector+num_states_off_lag*[0]
 
-	# Generate LED 
+	# Generate LED
 	chunk_length1 = 101//2+3
 	LED_chunk1 = [total_vector[max(state-i*num_steps_start_next,0)%len(total_vector)] for i in range(chunk_length1)]
 	LED_chunk1 = [LED_chunk1[i]*(window_decay_rate)**i for i in range(len(LED_chunk1))]
@@ -49,19 +53,19 @@ def StreamingLightPattern(state, color1=[255,0,0], color2=[0,0,255]):
 
 # Set up makeshift light grid
 num_lights = 217
-light_x_locations = list(linspace(0,-1,56))+60*[-1]+list(linspace(-1,-.5,26))+list(-1*linspace(.5**2,0,46)**(1/2))+29*[0]
-light_y_locations = 56*[0]+list(linspace(0,1,60))+26*[1]+list(linspace(1,.5,46))+list(linspace(.5,0,29))
-fig = plt.figure(figsize=(10,4))
-ax = fig.add_subplot(1,1,1)
-line1 = ax.scatter(light_x_locations, light_y_locations,s=num_lights*[0],c=arange(num_lights))
-fig.tight_layout()
+#light_x_locations = list(linspace(0,-1,56))+60*[-1]+list(linspace(-1,-.5,26))+list(-1*linspace(.5**2,0,46)**(1/2))+29*[0]
+#light_y_locations = 56*[0]+list(linspace(0,1,60))+26*[1]+list(linspace(1,.5,46))+list(linspace(.5,0,29))
+#fig = plt.figure(figsize=(10,4))
+#ax = fig.add_subplot(1,1,1)
+#line1 = ax.scatter(light_x_locations, light_y_locations,s=num_lights*[0],c=arange(num_lights))
+#fig.tight_layout()
 # plt.pause(.00001)
 
 
 state = 0
-for k in range(400):
+for k in range(800):
 
-	speed = 1
+	speed = 4
 	state += speed
 
 	spread_range = 25
@@ -90,10 +94,11 @@ for k in range(400):
 		LED_strip_values[[x%num_lights for x in range(curr_location,(curr_location+1+2*spread_range))]] += current_wave
 
 
-	# LED_strip_values = StreamingLightPattern(state)
-	line1.set_sizes(LED_strip_values)
-	line1.set_array(array(LED_strip_values))
-	plt.pause(1/30)
+	LED_strip_values = StreamingLightPattern(state)
+	pixels[:] = [[0,0,0]]+[[0,0,min(x,255)] for x in LED_strip_values]
+	#line1.set_sizes(LED_strip_values)
+	#line1.set_array(array(LED_strip_values))
+	#plt.pause(1/30)
 
 
 
