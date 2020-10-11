@@ -89,7 +89,7 @@ def GUI_display_thread(input_queue):
 				if is_signal:
 					point1.set_xdata(first_max_peak)
 					point1.set_ydata(signal_autocorrelation[first_max_peak])
-					text1.set_text(f'Main Frequencyz: {main_freq}Hz ({curr_note})\nMax Degree of fit: {int(100*best_fit)}%')
+					text1.set_text(f'Main Frequencyz: {main_freq}Hz ({curr_note["note"]})\nMax Degree of fit: {int(100*best_fit)}%')
 					line3.set_ydata(best_wave)
 				else:
 					text1.set_text(f'Main Frequencyz: --Hz (--)\nMax Degree of fit: --%')

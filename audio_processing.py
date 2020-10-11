@@ -9,9 +9,9 @@ import time
 # Set audio processing parameters
 sampling_rate = 44100
 visual_refresh_rate = 30#Hz, determines audio buffer size
-noise_db_threshold = 15#dB, sets threshold for volume to trigger audio analysis
+noise_db_threshold = 20#dB, sets threshold for volume to trigger audio analysis
 freq_window_length = 1/32#s, length of window used to compute current frequency
-volume_window_length = 1/64#s, length of window used to compute current volume
+volume_window_length = 1/32#s, length of window used to compute current volume
 running__beat_analysis = 2#s, must be less than running record length
 running_record_length = 5#s, length of running window of audio to store
 num_max_width = 2
@@ -56,9 +56,21 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 
 
 	# Define all note frequencies
-	notes_current = pd.DataFrame([('C1',32.70),('C1#',34.65),('D1',36.71),('D1#',38.89),('E1',41.20),('F1',43.65),
-		('F1#',46.25),('G1',49.00),('G1#',51.91),('A1',55.00),('A1#',58.27),('B1',61.74)])
-	notes_current.columns = ['note','freq']
+	notes_current = pd.DataFrame([
+		('C1',  32.70, ([0,0,255], [123,23,86])),
+		('C1#', 34.65, ([0,255,0], [0,0,255])),
+		('D1',  36.71, ([255,0,0], [0,255,0])),
+		('D1#', 38.89, ([255,55,5], [255,0,0])),
+		('E1',  41.20, ([55,55,255], [255,55,55])),
+		('F1',  43.65, ([20,20,255], [55,55,255])),
+		('F1#', 46.25, ([123,37,90], [20,20,255])),
+		('G1',  49.00, ([21,123,120, [123,37,90]])),
+		('G1#', 51.91, ([223,12,0], [21,123,120])),
+		('A1',  55.00, ([213,9,180, [223,12,0]])),
+		('A1#', 58.27, ([123,10,12], [213,9,180])),
+		('B1',  61.74, ([123,23,86], [123,10,12]))])
+
+	notes_current.columns = ['note','freq', 'color_pair']
 	all_notes = notes_current.copy()
 	for k in range(2,7):
 		notes_current['note'] = [x[:1]+str(k)+x[2:] for x in notes_current['note'].values]
@@ -66,7 +78,7 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 		all_notes = all_notes.append(notes_current)
 
 	# Get noise magnitude of room
-	print('\nGauging ambient noise level of the room, please be quiet.')
+	# print('\nGauging ambient noise level of the room, please be quiet.')
 	# noise_sample = array([],float)
 	# for k in range(int(1*sampling_rate/window_size)):
 	# 	noise_sample = concatenate((noise_sample,array(frombuffer(stream.read(window_size, exception_on_overflow=False), int16), float)))
@@ -100,7 +112,7 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 		signal_fft = abs(fft(hanning(len(freq_audio_chunk))*freq_audio_chunk))**2
 		first_max_peak = argmax(signal_autocorrelation[50:])+50
 		main_freq = round(sampling_rate/first_max_peak)		
-		curr_note = all_notes['note'].values[argmin(abs(all_notes['freq'].values-main_freq))]
+		curr_note = all_notes.iloc[argmin(abs(all_notes['freq'].values-main_freq)),:]
 
 		# Find best fitting theoretical wave
 		signal_x_times = arange(len(freq_audio_chunk))/sampling_rate
@@ -133,7 +145,7 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 			if beat_local_max:
 				min_between_beats = min(all_recorded_volumes[last_beat:])
 				min_beats = min(all_recorded_volumes[k],last_beat_volume)
-				if (min_between_beats-noise_level)<.7*(min_beats-noise_level): 
+				if (min_between_beats-noise_level)<.6*(min_beats-noise_level): 
 					last_beat = k
 					last_beat_volume = all_recorded_volumes[k]
 					volume_is_beat.append(True)
@@ -142,8 +154,6 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 			else:
 				volume_is_beat.append(False)
 	
-
-
 
 		# Output processed audio features for display
 		user_params = [sampling_rate, visual_refresh_rate, noise_db_threshold, freq_window_length,\
