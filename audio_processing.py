@@ -14,7 +14,7 @@ freq_window_length = 1/32#s, length of window used to compute current frequency
 volume_window_length = 1/32#s, length of window used to compute current volume
 running__beat_analysis = 2#s, must be less than running record length
 running_record_length = 5#s, length of running window of audio to store
-num_max_width = 2
+num_max_width = 1
 
 
 # --------------------------------------------- #
@@ -64,9 +64,9 @@ def audio_processing_thread(input_queue,output_queue,save_queue):
 		('E1',  41.20, ([55,55,255], [255,55,55])),
 		('F1',  43.65, ([20,20,255], [55,55,255])),
 		('F1#', 46.25, ([123,37,90], [20,20,255])),
-		('G1',  49.00, ([21,123,120, [123,37,90]])),
+		('G1',  49.00, ([21,123,120], [123,37,90])),
 		('G1#', 51.91, ([223,12,0], [21,123,120])),
-		('A1',  55.00, ([213,9,180, [223,12,0]])),
+		('A1',  55.00, ([213,9,180], [223,12,0])),
 		('A1#', 58.27, ([123,10,12], [213,9,180])),
 		('B1',  61.74, ([123,23,86], [123,10,12]))])
 
