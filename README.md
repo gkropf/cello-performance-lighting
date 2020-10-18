@@ -5,7 +5,10 @@ This page is currently under construction. Will be used on a Raspberry Pi to con
 ## Usng Application
 
 ### GUI Display
+![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/GUI_example.gif "")
+
 ### LED Display
+![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/LED_example.gif "")
 
 
 ## Hardware Setup
