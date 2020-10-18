@@ -77,14 +77,13 @@ def LED_display_thread(input_queue):
 
 		# Update current string/color based on frequency (if a signal is present). If not signal, turn off lights
 		if is_signal:
-			cello_string = 0 if main_freq < 65.41 else (1 if main_freq < 98 else (2 if main_freq < 146.83 else 3))
+			cello_string = 0 if main_freq < 98 else (1 if main_freq < 146.83  else (2 if main_freq < 220 else 3))
 			LEDcolor1 = curr_note['color_pair'][0]
 			LEDcolor2 = curr_note['color_pair'][1]
 			signal_strength = min(signal_strength+.2,1)
 			pattern_direction = 1 if (cello_string in [0,1]) else -1
-			print(curr_note)
 		else:
-			signal_strength *= .8
+			signal_strength *= .93
 
 		state += speed*pattern_direction
 		if state <= 200:
@@ -115,7 +114,7 @@ def LED_display_thread(input_queue):
 		LED_actual_values = [ \
 			[int(intensity*x) for x in LEDcolor1] \
 			if k//len(total_vector)%2==0 else \
-			[int(intensity*x) for x in LEDcolor1] \
+			[int(intensity*x) for x in LEDcolor2] \
 		 	for k, intensity in enumerate(LED_intensity_values)]
 
 		# Update LEDs
