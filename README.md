@@ -17,21 +17,21 @@ Required python packages: (for GUI) matplotlib; (for LED) neopixel, board; (comm
 
 ### GUI Display
 
-The GUI display shows four different views of the incoming audio signal. The raw signal is shown in the top left, and the signals Fourier transform (which gives the signals spectral content) is shown on the top right. In the bottom left we show the autocorrelation of the signal along with the current frequency and note. The note and frequency are only updated when an actual signal above the noise threshold is present. Finally, on the bottom right we show a history of the signal's relative volume (plotted on the logarithmic dB scale). The occurrence of new beats are marked by red squares. 
+The GUI display shows four different views of the incoming audio signal. The raw signal is shown in the top left, and the signal's Fourier transform (which gives the signal's spectral content) is shown on the top right. In the bottom left, we show the autocorrelation of the signal along with the current frequency and note. The note and frequency are only updated when an actual signal above the noise threshold is present. Finally, on the bottom right, we show a history of the signal's relative volume (plotted on the logarithmic dB scale). The occurrence of new beats are marked by red squares. 
 
 ![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/GUI_example.gif "")
 
 ### LED Display
 
-The LED display uses the current notes corresponding colors to create streaming light patterns. Every new beat increases the speed of the animation with a constant decay factor applied to the speed and brightness such that fade-in/fade-out effects occur in between notes. There are other light patterns written, but these haven't been incorporated into the main script yet as I'm working on smoothing out animation jumps between patterns.
+The LED display uses the current note's corresponding colors to create streaming light patterns. Every new beat increases the speed of the animation with a constant decay factor applied to the speed and brightness such that fade-in/fade-out effects occur in between notes. There are other light patterns written, but these haven't been incorporated into the main script yet as I'm working on smoothing out animation jumps between patterns.
 
 ![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/LED_example.gif "")
 
 
 ## Hardware Setup
-For this project, I used WS2812 individually addressable LEDs (often called NeoPixels due to the companies pioneering of the original strips). There is no shortage of great NeoPixel tutorials, I personally recommended starting here for a barebones walkthrough of getting started: https://learn.adafruit.com/neopixels-on-raspberry-pi/raspberry-pi-wiring.
+For this project, I used WS2812 individually addressable LEDs (often called NeoPixels due to the company's pioneering of the original strips). There is no shortage of great NeoPixel tutorials. I personally recommend starting here for a barebones walkthrough of getting started: https://learn.adafruit.com/neopixels-on-raspberry-pi/raspberry-pi-wiring.
 
-I used logical level converter to convert the 3.3V signal coming from the Raspberry Pi 4 to the 5V signal required for the LEDs. Then I connected a 5V 40A power supply to multiple locations in my LED strips to prevent voltage drop and variable light intensity (make sure to avoid ground loops when power from multiple locations). Since I used a symmetric platform, I split the signal into both sides of the platform. This cut down the number of LEDs I needed to update (since the signal is duplicated across) sides and cut the lag of the display in half. 
+I used a logical level converter to convert the 3.3V signal coming from the Raspberry Pi 4 to the 5V signal required for the LEDs. Then I connected a 5V 40A power supply to multiple locations in my LED strips to prevent voltage drop and variable light intensity (make sure to avoid ground loops when powering from multiple locations). Since I used a symmetric platform, I split the signal into both sides of the platform. This cut down the number of LEDs I needed to update (since the signal is duplicated across both sides) and cut the lag of the display in half. 
 
 Finally, I used a generic USB microphone plugged directly into the Pi which pyaudio has default support for.
 
