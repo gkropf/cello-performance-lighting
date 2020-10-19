@@ -22,6 +22,9 @@ The GUI display shows four different views of the incoming audio signal. The raw
 ![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/GUI_example.gif "")
 
 ### LED Display
+
+The LED display uses the current notes corresponding colors to create streaming light patterns. Every new beat increases the speed of the animation with a constant decay factor applied to the speed and brightness such that fade-in/fade-out affects occur inbetween notes. There are other light patterns written, but these haven't been incorporated into the main script yet as I'm working on smoothing out animation jumps between patterns.
+
 ![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/LED_example.gif "")
 
 
