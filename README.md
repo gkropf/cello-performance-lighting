@@ -1,8 +1,7 @@
 # Cello Performance Lighting
-This page is currently under construction. Will be used on a Raspberry Pi to control LED shows based on live reading of notes and temp played by a cello.
+Since beginning cello lessons I've been amazed by both the beauty of the instrument and the patience required for daily monotonous practice sessions. This project serves to spice things up when it comes to playing basic scales by having an LED display that responds to the notes and tempo of what I play. Each note on the cello corresponds to a distinct color palette, and each string determines a different animation pattern.
 
-
-## Usng Application
+## Using Application
 
 ### GUI Display
 ![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/GUI_example.gif "")
