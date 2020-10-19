@@ -14,8 +14,8 @@ The `main.py` script works by first importing`audio_processing.py` and then star
 All of this information is then inserted into an outbound queue that is to be used to update a visual display using either the GUI or LED display.
 
 Required python packages.
-For GUI display: matplotlib
-For LED display: neopixel, board
+For GUI display: matplotlib.
+For LED display: neopixel, board.
 Common: multiprocessing, queue,scipy, pandas, pyaudio, numpy, time.
 
 ### GUI Display
