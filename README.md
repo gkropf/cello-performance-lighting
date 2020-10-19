@@ -16,6 +16,9 @@ All of this information is then inserted into an outbound queue that is to be us
 Required python packages: (for GUI) matplotlib, (for LED) neopixel, board, (common) multiprocessing, queue, scipy, pandas, pyaudio, numpy, time.
 
 ### GUI Display
+
+The GUI display shows four different views of the incoming audio signal. The raw signal is shown in the top left, and the signals Fourier transform (which gives the signals spectral content) is shown on the top right. In the bottom left we show the signals autocorrelation along with the current frequency and note. The note and frequency are only updated when an actual signal above the noise threshold is present. Finally, on the bottom right we show a history of the signal's relative volume (plotted on the logarthmic dB scale). The occurent of new beats are marked by red squares. 
+
 ![alt text](https://github.com/gkropf/cello-performance-lighting/blob/master/ReadmeFiles/GUI_example.gif "")
 
 ### LED Display
